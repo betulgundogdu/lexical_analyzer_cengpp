@@ -1,0 +1,17 @@
+my_var_1 := "xxx";
+
+
+
+(* hello world it is test file yeah! *)
+
+
+
+var_1 := 3;
+var_2 := 352;
+var:= var_1 + 18; (*additonn*)
+while ( var_1 < 5) {
+    var_1++;
+    if(var_1 := 3){
+        break;
+    }
+}
