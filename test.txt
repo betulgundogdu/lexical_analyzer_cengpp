@@ -1,5 +1,6 @@
+xx := 0
 my_var_1 := "xxx";
-
+x?x := "f";
 
 
 (* hello world it is test file yeah! *)

@@ -12,23 +12,20 @@
 typedef enum { F, T } boolean;
 
 // global variables
-boolean endOfLine = F;
-boolean hasIdentifier = F;
-boolean hasConstant = F;
-boolean hasOperator = F;
-boolean hasKeyword = F;
-boolean hasLeftPar = F;
-boolean hasLeftCurly = F;
-boolean hasLeftSquare = F;
-boolean hasCommentStart = F;
+char *semicolon = ";";
+char *colon = ":";
+int endOfLine = 0;
+int commentLine = 0;
 
 //functions
 int parseLine(char *str, int lineCount); // read line & remove case sensivity & find comments & detect structure
-boolean isIdentifier(char *str, int lineCount); // find identifiers & make controls & create token 
-boolean isConstant(char *str, int lineCount); // find integer and string constants & make controls & create token 
-boolean isOperator(char *str, int lineCount); // find operators & make controls & create token 
-boolean isKeyword(char *str, int lineCount); // find keywords & make controls & create token 
+int findIdentifier(char *str, int lineCount); // find identifiers & make controls & create token 
+int findConstant(char *str, int lineCount); // find integer and string constants & make controls & create token 
+int findOperator(char *str, int lineCount); // find operators & make controls & create token 
+int findKeyword(char *str, int lineCount); // find keywords & make controls & create token 
+int findBrackets(char *str, int lineCount); // find keywords & make controls & create token 
 int convertLex(char *str, int lineCount); // write a token on lex file created
+char *strRemove(char *str, const char *sub);
 
 void removeSpaces(char* s) {
     const char* d = s;
@@ -104,6 +101,7 @@ int main() {
         return 1;
     }
     while (fgets(str, MAXCHAR, fp) != NULL){ // read file line by line
+        removeSpaces(str);
         if(strcmp(str, "\n") == 0 || strcmp(str,"\r\n") == 0) {
             printf("\n--Line %d: %s\n", lineCount, str);
             lineCount++;     
@@ -111,62 +109,104 @@ int main() {
         else {
             printf("\n--Line %d: %s\n", lineCount, str);
             parseLine(str, lineCount);
-            lineCount++;    
-        }     
+            lineCount++;  
+        } 
     }
     fclose(fp);
     return 0;
 }
 
 int parseLine(char *str, int lineCount){
-    isIdentifier(str, lineCount);
-    return 0;
+    char *left;
+    char *right;
+    char *identifier;
+    char *rightHandSideInComment;
+    char *leftHandSideInComment;
+    char *rightHandSideInLine;
+    char *leftHandSideInLine;    
+
+    // comment line control
+    if (strstr(str, "(*") != NULL) {
+        if(strstr(str, "*)") == NULL) {
+            leftHandSideInComment = strtok(str, "(*");
+            commentLine = 1;
+        } else {
+            rightHandSideInComment = strtok(NULL, "*)");
+        }      
+    }
+
+    if(leftHandSideInComment[0] != '\0'){
+        str = leftHandSideInComment;
+    }
+
+    // end of line control
+    // if(strstr(str, semicolon) != NULL) {
+    //     endOfLine = 0; // ; varsa 
+    //     leftHandSideInLine =  strtok(str, semicolon); // ard arda ; varsa ilk line
+    //     // rightHandSideInLine = strtok(str, semicolon); // loop gerekiyor
+    // }
+    // else {
+    //     endOfLine = 1;
+    // }
+
+    // if(leftHandSideInLine[0] != '\0')  {
+    //     str = leftHandSideInLine;
+    // }
+
+    strRemove(str, "\n"); // remove last char for new line \n
+    // keyword control
+    findKeyword(str, lineCount);
+    findIdentifier(str, lineCount);
+    //findOperator(str, lineCount);
 }
 
-boolean isIdentifier(char *str, int lineCount){
-    char *colon = ":";
-    removeSpaces(str);
-    char *identifier = strtok(str, colon);
-    char *value = strtok(NULL, colon);
-    printf("//////   %s-%s", identifier, value);
-    if(value[0] == '\0') {
-        // Error id: 0, "identifier_syntax_lack_of_colon"
-        return F; 
-    } else {
-        if( value[0] != 61) { // if equal sign does not come after colon
-            // Error id: 1, "identifier_syntax_lack_of_equal_sign"
-            return F;
-        }
-        else {
-            int init_size = strlen(identifier);
-            // controls to valid variable name or not
-            if (init_size > 20) { // size control of identifier
-                // Error id= 2, "identifier_syntax_too_long"
-                return F; 
-            }
-            // first char control
-            else if ( !(identifier[0] > 64 && identifier[0] < 91) ||  !(identifier[0] > 96 && identifier[0] < 122)){
-                // Error id= 3, "identifier_syntax_first_char"
-                return F;
-            }
-            else {
-                // controls of every char of string is not number,letter or underscore
-                for(int i = 0; i < init_size; i++){
-                    if (!(identifier[i] > 64 && identifier[i] < 91) ||  !(identifier[i] > 96 && identifier[i] < 122) || !(identifier[i] > 47 && identifier[i] < 58) || identifier[i] != 95){
-                        // Error id= 4, "identifier_syntax_unexpected_char"
-                        return F;
-                    }               
+int findIdentifier(char *str, int lineCount){
+    if(strstr(str, ":=") != NULL){
+        char *identifier = strtok(str, colon);
+        printf("Identifier(%s)\n", identifier);
+
+        if(findOperator(str, lineCount) == 1){       
+            char *value = strtok(NULL, colon);
+            if(value[0] == '\0') {
+                printf("Line %d, Error id: 0, identifier_syntax_lack_of_colon\n", lineCount);
+                return 1; 
+            } else {
+                if( value[0] != 61) { // if equal sign does not come after colon
+                    printf("Line %d, Error id: 1, identifier_syntax_lack_of_equal_sign\n", lineCount);
+                    return 1;
                 }
-                // Example Token = Identifier(identifier)
-                printf("\nIdentifier(%s)\n", identifier);
-                isConstant(value, lineCount);
-                return T;  
-            }            
+                else {                 
+                    int init_size = strlen(identifier);
+                    // controls to valid variable name or not
+                    if (init_size > 20) { // size control of identifier
+                        printf("Line %d, Error id: 2, identifier_syntax_too_long\n", lineCount);
+                        return 1; 
+                    }
+                    // first char control
+                    else if ( !isalpha(identifier[0]) ){
+                        printf("Line %d, Error id: 3, identifier_syntax_first_char\n", lineCount);
+                        return 1;
+                    }
+                    else {
+                        // controls of every char of string is not number,letter or underscore
+                        for(int i = 0; i < init_size; i++){
+                            if ( !(isalpha(identifier[i]) || isdigit(identifier[i]) || identifier[i] == 95) ){
+                                printf("Line %d, Error id: 4, identifier_syntax_unexpected_char : you can not use `%c` in a variable name.\n", lineCount, identifier[i]);
+                                return 1;
+                            }               
+                        }
+                        strRemove(value, ";");
+                        memmove(value, value+1, strlen(value));
+                        findConstant(value, lineCount);                  
+                        return 0;  
+                    }            
+                }
+            }
         }
     }
 }
 
-boolean isConstant(char *str, int lineCount){
+int findConstant(char *str, int lineCount){
     char *endToken;
     long int ret;
     int integerConstant;
@@ -174,30 +214,29 @@ boolean isConstant(char *str, int lineCount){
     ret = strtol(str, &endToken, 10);
     if(ret == 0 && (endToken[0] == '\0')){ // integer constant = 0 statement control
         integerConstant = 0;
-        return T;
-        printf("\nIntConst(%d)\n", integerConstant);
-        // Example Token: IntConst(integerConstant) 
+        printf("IntConst(%d)\n", integerConstant);
+        return 0;
     } 
-    else if (ret != 0 && (endToken[0] != '\0')) { // any integer constant
+    else if (ret != 0 && (endToken[0] == '\0')) { // any integer constant
         integerConstant = ret;
         // Control for valid integer constant or not
         if (integerConstant < 0) {
-            // Error id= 6, "integer_constant_syntax_negative_values",
-            return F;
+            printf("Line %d, Error id: 6, integer_constant_syntax_negative_values\n", lineCount);
+            return 1;
         }
         else if (integerConstant / 1000000000 > 0){
-            // Error id= 5, "integer_constant_syntax_too_big"
-            return F;
+            printf("Line %d, Error id: 5, integer_constant_syntax_too_big\n", lineCount);
+            return 1;
         }
         else {
-            return T;
-            // Example Token: IntConst(integerConstant) 
-            printf("\nIntConst(%d)\n", integerConstant);
+            printf("IntConst(%d)\n", integerConstant);
+            return 0;
+
 
         }
     }
-    else if (ret == 0 && !(endToken[0] != '\0')){ // string constant statement
-        stringConstant = endToken;
+    else if (ret == 0 && endToken[0] != '\0'){ // string constant statement
+        stringConstant = strRemove(endToken, "\"");
         int countDoubleQuote = 0;
         // string constant control to include extra double quote or not
         for (int i = 0; i < strlen(stringConstant); i++){
@@ -207,11 +246,11 @@ boolean isConstant(char *str, int lineCount){
         }
 
         if(countDoubleQuote % 2 == 1) {
-            // Error id= 14, "string_syntax_invalid_double_quote"
-            return F;
+            printf("Line %d, Error id: 14, string_syntax_invalid_double_quote\n", lineCount);
+            return 1;
         }
-        return T;
-        printf("\nStringConst(%s)\n", stringConstant);
+        printf("StringConst(%s)\n", stringConstant);
+        return 0;
     }
     // else {
     //     stringConstant = endToken;
@@ -220,27 +259,58 @@ boolean isConstant(char *str, int lineCount){
     // }
 }
 
-boolean isOperator(char *str, int lineCount){
+int findOperator(char *str, int lineCount){
     for(int i = 0; i < OP_COUNT; i++){
-        if(strcmp(str, operators[i]) == 0) {
-            // Example Token: Operator(str)
-            return T;
+        if(strstr(str, operators[i]) != NULL) {
+            printf("Operator(%s)\n", operators[i]);
+            return 0;
         } 
     }
-    // Error id= 7, "operators_syntax_invalid"
-    return F;
+    //printf("Line %d, Error id: 7, operators_syntax_invalid\n", lineCount);
+    return 1;
 }
 
-boolean isKeyword(char *str, int lineCount){
+int findKeyword(char *str, int lineCount){
     for(int i = 0; i < KEYWORD_COUNT; i++){
-        if(strcmp(str, keywords[i]) == 0) {
-            // Example Token: Keyword(str)
-            return T;
+        if(strstr(str, keywords[i]) != NULL) {
+            printf("Keyword(%s)\n", keywords[i]);
+            return 0;
         }
     }
-    // Error id= 11, "keyword_syntax_invalid"
-    return F;
+    // printf("Line %d, Error id: 11, keyword_syntax_invalid\n", lineCount);
+    return 1;
 }
+
+int findBrackets(char *str, int lineCount)
+{
+    if(strstr(str,"(")  != NULL)
+        printf("LeftPar\n");
+    if(strstr(str,")")  != NULL)
+        printf("RightPar\n");
+    if(strstr(str,"[")  != NULL)
+        printf("LeftSquareBracket\n");
+    if(strstr(str,"]")  != NULL)
+        printf("RightSquareBracket\n");
+    if(strstr(str,"{")  != NULL)
+        printf("LeftCurlyBracket\n");
+    if(strstr(str,"}")  != NULL)
+        printf("RightCurlyBracket\n");
+}
+
+char *strRemove(char *str, const char *sub)
+{
+    size_t len = strlen(sub);
+    if (len > 0)
+    {
+        char *p = str;
+        while ((p = strstr(p, sub)) != NULL)
+        {
+            memmove(p, p + len, strlen(p + len) + 1);
+        }
+    }
+    return str;
+}
+
 
 int convertLex(char *str, int lineCount){}
 
