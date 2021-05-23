@@ -6,6 +6,7 @@
 #define MAXCHAR 1000 //maxchar on a line
 #define KEYWORD_COUNT 18 //count of keywords
 #define OP_COUNT 7
+#define BRACKET_COUNT 6
 
 
 // Declaration of enum
@@ -14,8 +15,14 @@ typedef enum { F, T } boolean;
 // global variables
 char *semicolon = ";";
 char *colon = ":";
-int endOfLine = 0;
-int commentLine = 0;
+boolean endOfLine = F;
+boolean commentLine = F;
+boolean needCurlyLeftBrackets = F;
+boolean needCurlyRightBrackets = F;
+boolean needSquareLeftBrackets = F;
+boolean needSquareRightBrackets = F;
+boolean needLeftPar = F;
+boolean needRightPar = F;
 
 //functions
 int parseLine(char *str, int lineCount); // read line & remove case sensivity & find comments & detect structure
@@ -23,7 +30,7 @@ int findIdentifier(char *str, int lineCount); // find identifiers & make control
 int findConstant(char *str, int lineCount); // find integer and string constants & make controls & create token 
 int findOperator(char *str, int lineCount); // find operators & make controls & create token 
 int findKeyword(char *str, int lineCount); // find keywords & make controls & create token 
-int findBrackets(char *str, int lineCount); // find keywords & make controls & create token 
+int *findBrackets(char *str, int lineCount); // find keywords & make controls & create token 
 int convertLex(char *str, int lineCount); // write a token on lex file created
 char *strRemove(char *str, const char *sub);
 
@@ -47,6 +54,10 @@ char *keywords[KEYWORD_COUNT] = {
 
 char *operators[OP_COUNT] = {
     "+","-","*","/","++","--",":="
+};
+
+char *brackets[BRACKET_COUNT] = {
+    "(", ")", "{", "}", "[", "]"
 };
 
 // struct for errors
@@ -100,14 +111,13 @@ int main() {
         printf("Could not open file %s", filename);
         return 1;
     }
+
     while (fgets(str, MAXCHAR, fp) != NULL){ // read file line by line
         removeSpaces(str);
         if(strcmp(str, "\n") == 0 || strcmp(str,"\r\n") == 0) {
-            printf("\n--Line %d: %s\n", lineCount, str);
             lineCount++;     
         }
         else {
-            printf("\n--Line %d: %s\n", lineCount, str);
             parseLine(str, lineCount);
             lineCount++;  
         } 
@@ -129,9 +139,10 @@ int parseLine(char *str, int lineCount){
     if (strstr(str, "(*") != NULL) {
         if(strstr(str, "*)") == NULL) {
             leftHandSideInComment = strtok(str, "(*");
-            commentLine = 1;
+            commentLine = T;
         } else {
             rightHandSideInComment = strtok(NULL, "*)");
+            commentLine = F;
         }      
     }
 
@@ -154,10 +165,10 @@ int parseLine(char *str, int lineCount){
     // }
 
     strRemove(str, "\n"); // remove last char for new line \n
-    // keyword control
-    findKeyword(str, lineCount);
+    findKeyword(str, lineCount); 
+    findBrackets(str, lineCount);  
     findIdentifier(str, lineCount);
-    //findOperator(str, lineCount);
+    findOperator(str, lineCount);
 }
 
 int findIdentifier(char *str, int lineCount){
@@ -271,30 +282,94 @@ int findOperator(char *str, int lineCount){
 }
 
 int findKeyword(char *str, int lineCount){
+    char *keyword;
+    int indexOfKeyword;
     for(int i = 0; i < KEYWORD_COUNT; i++){
         if(strstr(str, keywords[i]) != NULL) {
-            printf("Keyword(%s)\n", keywords[i]);
-            return 0;
+            indexOfKeyword = (int)(strstr(str, keywords[i]) - str);
+            keyword = keywords[i];
+            switch (i)
+            {
+                case 0: //break keyword control
+                case 4: //continue
+                case 15: // return
+                    if(endOfLine == T)
+                        endOfLine = F;    
+                    break;
+                case 1: ;//case keyword control
+                    int indexOfColon = (int)(strchr(str, ':') - str);
+                    if(indexOfColon != indexOfKeyword + 4)
+                        printf("Error: Line %d, colon is not use end of case.", lineCount);
+                    break;       
+                case 2: //char keyword control
+                case 3: //const keyword control
+                case 7: //enum
+                case 8: // float
+                case 10: // goto
+                case 12: // int
+                case 13: // long
+                case 16: ;// static
+                    int lenOfKeyword = strlen(keyword);
+                    if(strstr(str, keyword) != NULL){
+                        int index = (int)(strstr(str, keyword) - str);
+                        int shift = index + lenOfKeyword;
+                        memmove(str, str+shift, strlen(str));
+                        findIdentifier(str, lineCount);
+                    }
+                    break;  
+                case 5: // do keyword control
+                case 6: // else keyword control
+                    if(findBrackets(str, lineCount) == NULL){
+                        needCurlyLeftBrackets = T;
+                        needCurlyLeftBrackets = T;
+                    }     
+                    break;
+                case 9: // for
+                case 11: // if
+                case 14: // record
+                case 17:  // while
+                    break;
+                default:
+                    break;
+            }
+            printf("Keyword(%s)\n", keyword);
         }
     }
     // printf("Line %d, Error id: 11, keyword_syntax_invalid\n", lineCount);
-    return 1;
+    return 0;
 }
 
-int findBrackets(char *str, int lineCount)
-{
-    if(strstr(str,"(")  != NULL)
-        printf("LeftPar\n");
-    if(strstr(str,")")  != NULL)
-        printf("RightPar\n");
-    if(strstr(str,"[")  != NULL)
-        printf("LeftSquareBracket\n");
-    if(strstr(str,"]")  != NULL)
-        printf("RightSquareBracket\n");
-    if(strstr(str,"{")  != NULL)
-        printf("LeftCurlyBracket\n");
-    if(strstr(str,"}")  != NULL)
-        printf("RightCurlyBracket\n");
+int *findBrackets(char *str, int lineCount)
+{  
+    for (int i = 0; i < BRACKET_COUNT; i++) {
+        if(strstr(str, brackets[i]) != NULL){
+            int indexOfBracket = (int)(strstr(str, brackets[i]) - str);
+            switch (i)
+            {
+                case 0:
+                    printf("LeftPar\n");
+                    break;
+                case 1:
+                    printf("RightPar\n");
+                    break;
+                case 2:    
+                    printf("LeftSquareBracket\n");
+                    break;
+                case 3:
+                    printf("RightSquareBracket\n");
+                    break;
+                case 4:
+                    printf("LeftCurlyBracket\n");
+                    break;
+                case 5:
+                    printf("RightCurlyBracket\n");
+                    break;
+                default:
+                    break;
+            }
+        }
+        return 0;
+    }
 }
 
 char *strRemove(char *str, const char *sub)
