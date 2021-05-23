@@ -31,7 +31,9 @@ int findConstant(char *str, int lineCount); // find integer and string constants
 int findOperator(char *str, int lineCount); // find operators & make controls & create token 
 int findKeyword(char *str, int lineCount); // find keywords & make controls & create token 
 int *findBrackets(char *str, int lineCount); // find keywords & make controls & create token 
-int convertLex(char *str, int lineCount); // write a token on lex file created
+int writeErrorOnLex(char *str, int lineCount); // write a error on lex file created
+int writeErrorOnLexWithArgument (char *str, int lineCount, char token); // write error on lex file created
+int writeTokenOnLex(char *str, char *token); // write a token on lex file created
 char *strRemove(char *str, const char *sub);
 
 void removeSpaces(char* s) {
@@ -104,7 +106,7 @@ struct Error typeOfError[21] = {
 int main() {
     FILE *fp;
     char str[MAXCHAR];
-    char* filename = "test.txt";
+    char* filename = "code.Ceng";
     int lineCount = 1;
     fp = fopen(filename, "r"); // start to read file
     if (fp == NULL){
@@ -174,38 +176,37 @@ int parseLine(char *str, int lineCount){
 int findIdentifier(char *str, int lineCount){
     if(strstr(str, ":=") != NULL){
         char *identifier = strtok(str, colon);
-        printf("Identifier(%s)\n", identifier);
-
         if(findOperator(str, lineCount) == 1){       
             char *value = strtok(NULL, colon);
             if(value[0] == '\0') {
-                printf("Line %d, Error id: 0, identifier_syntax_lack_of_colon\n", lineCount);
+                writeErrorOnLex("Line %d, Error id: 0, identifier_syntax_lack_of_colon\n", lineCount);
                 return 1; 
             } else {
                 if( value[0] != 61) { // if equal sign does not come after colon
-                    printf("Line %d, Error id: 1, identifier_syntax_lack_of_equal_sign\n", lineCount);
+                    writeErrorOnLex("Line %d, Error id: 1, identifier_syntax_lack_of_equal_sign\n", lineCount);
                     return 1;
                 }
                 else {                 
                     int init_size = strlen(identifier);
                     // controls to valid variable name or not
                     if (init_size > 20) { // size control of identifier
-                        printf("Line %d, Error id: 2, identifier_syntax_too_long\n", lineCount);
+                        writeErrorOnLex("Line %d, Error id: 2, identifier_syntax_too_long\n", lineCount);
                         return 1; 
                     }
                     // first char control
                     else if ( !isalpha(identifier[0]) ){
-                        printf("Line %d, Error id: 3, identifier_syntax_first_char\n", lineCount);
+                        writeErrorOnLex("Line %d, Error id: 3, identifier_syntax_first_char\n", lineCount);
                         return 1;
                     }
                     else {
                         // controls of every char of string is not number,letter or underscore
                         for(int i = 0; i < init_size; i++){
                             if ( !(isalpha(identifier[i]) || isdigit(identifier[i]) || identifier[i] == 95) ){
-                                printf("Line %d, Error id: 4, identifier_syntax_unexpected_char : you can not use `%c` in a variable name.\n", lineCount, identifier[i]);
+                                writeErrorOnLexWithArgument("Line %d, Error id: 4, identifier_syntax_unexpected_char : you can not use `%c` in a variable name.\n", lineCount, identifier[i]);
                                 return 1;
                             }               
                         }
+                        writeTokenOnLex("Identifier(%s)\n", identifier);
                         strRemove(value, ";");
                         memmove(value, value+1, strlen(value));
                         findConstant(value, lineCount);                  
@@ -225,43 +226,50 @@ int findConstant(char *str, int lineCount){
     ret = strtol(str, &endToken, 10);
     if(ret == 0 && (endToken[0] == '\0')){ // integer constant = 0 statement control
         integerConstant = 0;
-        printf("IntConst(%d)\n", integerConstant);
+        char number[20];
+	    sprintf(number, "%d", integerConstant);   
+        writeTokenOnLex("IntConst(%d)\n", number);
         return 0;
     } 
     else if (ret != 0 && (endToken[0] == '\0')) { // any integer constant
         integerConstant = ret;
         // Control for valid integer constant or not
         if (integerConstant < 0) {
-            printf("Line %d, Error id: 6, integer_constant_syntax_negative_values\n", lineCount);
+            writeErrorOnLex("Line %d, Error id: 6, integer_constant_syntax_negative_values\n", lineCount);
             return 1;
         }
         else if (integerConstant / 1000000000 > 0){
-            printf("Line %d, Error id: 5, integer_constant_syntax_too_big\n", lineCount);
+            writeErrorOnLex("Line %d, Error id: 5, integer_constant_syntax_too_big\n", lineCount);
             return 1;
         }
         else {
-            printf("IntConst(%d)\n", integerConstant);
+            char number[20];
+	        sprintf(number, "%d", integerConstant);
+            writeTokenOnLex("IntConst(%d)\n", number);
             return 0;
 
 
         }
     }
     else if (ret == 0 && endToken[0] != '\0'){ // string constant statement
-        stringConstant = strRemove(endToken, "\"");
         int countDoubleQuote = 0;
+        stringConstant = endToken;
         // string constant control to include extra double quote or not
         for (int i = 0; i < strlen(stringConstant); i++){
-            if (stringConstant[i] == 34) {
+            if (stringConstant[i] == '\"') {
                 countDoubleQuote++;
             } 
         }
-
         if(countDoubleQuote % 2 == 1) {
-            printf("Line %d, Error id: 14, string_syntax_invalid_double_quote\n", lineCount);
+            writeErrorOnLex("Line %d, Error id: 14, string_syntax_invalid_double_quote\n", lineCount);
             return 1;
         }
-        printf("StringConst(%s)\n", stringConstant);
-        return 0;
+        else {
+            stringConstant = strRemove(endToken, "\"");
+            writeTokenOnLex("StringConst(%s)\n", stringConstant);
+            return 0;
+        }
+
     }
     // else {
     //     stringConstant = endToken;
@@ -273,7 +281,7 @@ int findConstant(char *str, int lineCount){
 int findOperator(char *str, int lineCount){
     for(int i = 0; i < OP_COUNT; i++){
         if(strstr(str, operators[i]) != NULL) {
-            printf("Operator(%s)\n", operators[i]);
+            writeTokenOnLex("Operator(%s)\n", operators[i]);
             return 0;
         } 
     }
@@ -299,7 +307,7 @@ int findKeyword(char *str, int lineCount){
                 case 1: ;//case keyword control
                     int indexOfColon = (int)(strchr(str, ':') - str);
                     if(indexOfColon != indexOfKeyword + 4)
-                        printf("Error: Line %d, colon is not use end of case.", lineCount);
+                        writeErrorOnLex("Error: Line %d, colon is not use end of case.", lineCount);
                     break;       
                 case 2: //char keyword control
                 case 3: //const keyword control
@@ -332,7 +340,7 @@ int findKeyword(char *str, int lineCount){
                 default:
                     break;
             }
-            printf("Keyword(%s)\n", keyword);
+            writeTokenOnLex("Keyword(%s)\n", keyword);
         }
     }
     // printf("Line %d, Error id: 11, keyword_syntax_invalid\n", lineCount);
@@ -347,22 +355,22 @@ int *findBrackets(char *str, int lineCount)
             switch (i)
             {
                 case 0:
-                    printf("LeftPar\n");
+                    writeTokenOnLex("%s\n", "LeftPar");
                     break;
                 case 1:
-                    printf("RightPar\n");
+                    writeTokenOnLex("%s\n", "RightPar");
                     break;
                 case 2:    
-                    printf("LeftSquareBracket\n");
+                    writeTokenOnLex("%s\n", "LeftSquareBracket");
                     break;
                 case 3:
-                    printf("RightSquareBracket\n");
+                    writeTokenOnLex("%s\n", "RightSquareBracket");
                     break;
                 case 4:
-                    printf("LeftCurlyBracket\n");
+                    writeTokenOnLex("%s\n", "LeftCurlyBracket");
                     break;
                 case 5:
-                    printf("RightCurlyBracket\n");
+                    writeTokenOnLex("%s\n", "RightCurlyBracket");
                     break;
                 default:
                     break;
@@ -387,9 +395,66 @@ char *strRemove(char *str, const char *sub)
 }
 
 
-int convertLex(char *str, int lineCount){}
+int writeErrorOnLex(char *str, int lineCount){
+    /* File pointer to hold reference to our file */
+    FILE * fPtr;
+    /* 
+     * Open file in w (write) mode. 
+     */
+    fPtr = fopen("code.lex", "a");
+
+    /* fopen() return NULL if last operation was unsuccessful */
+    if(fPtr == NULL)
+    {
+        /* File not created hence exit */
+        printf("Unable to create file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(fPtr, str, lineCount);
+    fclose(fPtr);
+}
+
+int writeTokenOnLex(char *str, char *token){
+    /* File pointer to hold reference to our file */
+    FILE * fPtr;
+    /* 
+     * Open file in w (write) mode. 
+     */
+    fPtr = fopen("code.lex", "a");
+
+    /* fopen() return NULL if last operation was unsuccessful */
+    if(fPtr == NULL)
+    {
+        /* File not created hence exit */
+        printf("Unable to create file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(fPtr, str, token);
+    fclose(fPtr);
+}
 
 
+int writeErrorOnLexWithArgument (char *str, int lineCount, char token){
+    /* File pointer to hold reference to our file */
+    FILE * fPtr;
+    /* 
+     * Open file in w (write) mode. 
+     */
+    fPtr = fopen("code.lex", "a");
+
+    /* fopen() return NULL if last operation was unsuccessful */
+    if(fPtr == NULL)
+    {
+        /* File not created hence exit */
+        printf("Unable to create file.\n");
+        exit(EXIT_FAILURE);
+    }
+
+    fprintf(fPtr, str, token);
+    fclose(fPtr);
+}
 
 /*
         // char to string to compare

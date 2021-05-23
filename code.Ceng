@@ -3,12 +3,13 @@ my_var_1 := "xxx";
 x?x := "f";
 
 
-(* hello world it is test file yeah! *)
+(* hello world it 
+is test file! *)
 
 
-
-var_1 := 3;
+var_1 : 3;
 var_2 := 352;
+var_3 := "ssd""
 var:= var_1 + 18; (*additonn*)
 while ( var_1 < 5) {
     var_1++;
